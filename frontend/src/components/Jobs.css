@@ -1,0 +1,14 @@
+ /* TaskConnect/frontend/src/components/Jobs.css */
+.jobs-container {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .jobs-container h2 {
+    color: #333;
+  }
+  
+  .jobs-container p {
+    color: #666;
+  }
