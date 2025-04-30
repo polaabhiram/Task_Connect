@@ -196,7 +196,7 @@ router.get('/report', authMiddleware, async (req, res) => {
     console.log('Generation result:', result);
     let report = result.response.text();
 
-    // Remove all stars (***, **, *) from the report
+    
     report = report.replace(/(\*{1,3})/g, '').trim();
 
     console.log('Generated report (stars removed):', report);

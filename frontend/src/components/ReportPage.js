@@ -4,6 +4,7 @@ import axios from 'axios';
 const ReportPage = () => {
   const [report, setReport] = useState('');
   const [message, setMessage] = useState('');
+  const [visitCount, setVisitCount] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -13,7 +14,15 @@ const ReportPage = () => {
     } else {
       fetchReport(token);
     }
+
+    const storedCount = localStorage.getItem('pageVisitCount');
+    const count = storedCount ? parseInt(storedCount, 10) + 1 : 1;
+    setVisitCount(count);
+    localStorage.setItem('pageVisitCount', count);
+    console.log(`Page visited ${count} time(s)`);
   }, []);
+
+  
 
   const fetchReport = async (token) => {
     try {
@@ -35,6 +44,7 @@ const ReportPage = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <h1 className="text-4xl font-bold mb-6 text-center">Website Report</h1>
+      <p className="text-center mb-4">Visited {visitCount} time(s)</p>
       {message && (
         <p className={`text-center mb-4 ${message.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
           {message}
