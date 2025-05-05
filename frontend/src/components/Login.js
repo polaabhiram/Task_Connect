@@ -1,4 +1,3 @@
-// TaskConnect/frontend/src/components/Login.js
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -37,13 +36,20 @@ const Login = ({ showRegister, toggleRegister }) => {
         password: loginData.password
       });
       localStorage.setItem('token', response.data.token);
-      console.log('Stored token:', localStorage.getItem('token'));
+      localStorage.setItem('role', loginData.role); // Store the role in localStorage
+      console.log('Stored token:', localStorage.getItem('token')); // Debug log
+      console.log('Stored role:', localStorage.getItem('role'));   // Debug log
       window.dispatchEvent(new Event('storage'));
-      setMessage(response.data.message);
-      navigate('/dashboard');
+      setMessage(response.data.message || 'Login successful!');
+      setLoginData({ email: '', password: '', role: 'worker' }); // Reset form
+      setTimeout(() => {
+        setMessage(''); // Clear message before navigating
+        navigate('/dashboard');
+      }, 1000); // Brief delay to show success message
     } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Error logging in';
+      setMessage(errorMsg);
       console.error('Login error:', err.response ? err.response.data : err.message);
-      setMessage(err.response?.data?.message || 'Error logging in');
     }
   };
 
@@ -68,10 +74,24 @@ const Login = ({ showRegister, toggleRegister }) => {
       }
 
       const response = await axios.post(`http://localhost:5001/api/auth/register/${endpoint}`, payload);
-      setMessage(response.data.message);
+      setMessage(response.data.message || 'Registration successful! Please log in.');
+      console.log('Registration successful:', response.data); // Debug log
+      setRegisterData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'worker',
+        type: '',
+        location: '',
+        description: '',
+        category: '',
+        availability: ''
+      }); // Reset form
       toggleRegister(); // Switch back to login mode after successful registration
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Error registering');
+      const errorMsg = err.response?.data?.message || 'Error registering';
+      setMessage(errorMsg);
+      console.error('Register error:', err.response ? err.response.data : err.message);
     }
   };
 
@@ -195,7 +215,7 @@ const Login = ({ showRegister, toggleRegister }) => {
                     onChange={handleRegisterChange}
                     placeholder="Description"
                     required
-                    style={{ width: '100%', padding: '10px 10px 10px 40px', fontSize: '1rem', background: '#3A3F3F', border: 'none', borderRadius: '5px', color: '#ffffff', minHeight: '80px' }}
+                    style={{ width: '100%', padding: '10px 10px 10px 40px', fontSize: '1rem', background: '#E5E7EB', border: '1px solid #D1D5DB', borderRadius: '5px', color: '#1F2937', minHeight: '80px' }}
                   />
                 </div>
               </>

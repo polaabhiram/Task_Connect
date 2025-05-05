@@ -22,8 +22,6 @@ const ReportPage = () => {
     console.log(`Page visited ${count} time(s)`);
   }, []);
 
-  
-
   const fetchReport = async (token) => {
     try {
       setMessage('Generating report...');
@@ -42,17 +40,17 @@ const ReportPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-4xl font-bold mb-6 text-center">Website Report</h1>
-      <p className="text-center mb-4">Visited {visitCount} time(s)</p>
+    <div className="report-page">
+      <h1>Website Report</h1>
+      <p className="visit-count">Visited {visitCount} time(s)</p>
       {message && (
-        <p className={`text-center mb-4 ${message.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
+        <p className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
           {message}
         </p>
       )}
       {report && (
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
-          <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: report.replace(/\n/g, '<br/>') }} />
+        <div className="report-container">
+          <div dangerouslySetInnerHTML={{ __html: report.replace(/\n/g, '<br/>') }} />
         </div>
       )}
     </div>
