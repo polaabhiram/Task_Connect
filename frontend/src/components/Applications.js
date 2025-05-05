@@ -95,7 +95,8 @@ const Applications = () => {
 
     } catch (err) {
       console.error(`Error ${newStatus}ing application:`, err);
-      const errorMsg = err.response?.data?.message || `Error ${newStatus}ing application`;
+      // *** FIX THE TYPO IN THE NEXT LINE ***
+      const errorMsg = err.response?.data?.message || `Error ${newStatus === 'accept' ? 'accepting' : 'rejecting'} application`;
       setMessage(errorMsg);
       // Optional: Clear message after a delay
       // setTimeout(() => setMessage(''), 5000);
