@@ -3,8 +3,9 @@ const router = express.Router();
 const Job = require('../models/Job');
 const authMiddleware = require('../middleware/auth');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const mongoose = require('mongoose'); // Ensure mongoose is required
 
-// GET / - Fetch all jobs (publicly viewable, maybe adjust later if needed)
+// GET / - Fetch all jobs
 router.get('/', async (req, res) => {
   try {
     console.log('[GET /] Fetching all jobs');
@@ -24,7 +25,7 @@ router.get('/', async (req, res) => {
 });
 
 
-// GET /available - Fetch jobs available for a worker to apply to
+// GET /available - Fetch jobs available for a worker
 router.get('/available', authMiddleware, async (req, res) => {
   try {
     console.log('[GET /available] Fetching available jobs for user:', req.user);
@@ -41,8 +42,8 @@ router.get('/available', authMiddleware, async (req, res) => {
 
     // Find jobs that are NOT posted by the current worker AND the worker hasn't applied to
     const availableJobs = await Job.find({
-        _id: { $nin: appliedJobIds },         // Exclude jobs already applied to
-        postedBy: { $ne: req.user.id }      // Exclude jobs posted by the worker themselves (if applicable)
+        _id: { $nin: appliedJobIds },
+        // postedBy: { $ne: req.user.id } // Removed this line - workers might apply to their own postings? Re-add if needed.
       })
       .populate('postedBy', 'name') // Populate the name of the professional body who posted
       .lean(); // Use lean for performance if not modifying docs
@@ -166,9 +167,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 
 // GET /report - Generate website-wide report using Gemini API
 router.get('/report', authMiddleware, async (req, res) => {
-  // Ensure the GoogleGenerativeAI is required at the top
   try {
-    // Check if API key is present
     if (!process.env.GENAI_API_KEY) {
         console.error('[GET /report] GENAI_API_KEY is not set in environment variables.');
         return res.status(500).json({ message: 'Report generation service is not configured.' });
@@ -176,8 +175,7 @@ router.get('/report', authMiddleware, async (req, res) => {
     const genAI = new GoogleGenerativeAI(process.env.GENAI_API_KEY);
     console.log('[GET /report] GenAI instance created. Generating report...');
 
-    // Fetch necessary data (jobs and applications)
-    const jobs = await Job.find().populate('postedBy', 'name').lean(); // Use lean for performance
+    const jobs = await Job.find().populate('postedBy', 'name').lean();
     const allApplications = jobs.flatMap(job =>
         job.applications.map(app => ({
             jobTitle: job.title,
@@ -200,7 +198,6 @@ router.get('/report', authMiddleware, async (req, res) => {
     const monthlyApps = allApplications.filter(a => a.appliedAt >= oneMonthAgo);
     const annualApps = allApplications.filter(a => a.appliedAt >= oneYearAgo);
 
-    // Helper function to get status counts
     const getStatusCounts = (apps) => ({
         pending: apps.filter(a => a.status === 'pending').length,
         accepted: apps.filter(a => a.status === 'accepted').length,
@@ -212,7 +209,6 @@ router.get('/report', authMiddleware, async (req, res) => {
     const annualAppStatus = getStatusCounts(annualApps);
     const totalAppStatus = getStatusCounts(allApplications);
 
-    // Construct a detailed prompt for Gemini
     const prompt = `
       Generate a professional summary report for the TaskConnect platform based on the following data.
       Format the report clearly with headings and bullet points. Use Markdown for formatting.
@@ -241,12 +237,11 @@ router.get('/report', authMiddleware, async (req, res) => {
       Report generated on: ${now.toLocaleString()}
     `;
 
-    console.log('[GET /report] Sending prompt to Gemini:', prompt);
+    console.log('[GET /report] Sending prompt to Gemini...');
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     console.log('[GET /report] Received response from Gemini.');
 
-    // Process the response - ensure it's text
     let reportText = '';
     if (result && result.response && typeof result.response.text === 'function') {
         reportText = result.response.text();
@@ -255,18 +250,17 @@ router.get('/report', authMiddleware, async (req, res) => {
         throw new Error('Failed to get text from Gemini response.');
     }
 
-    console.log('[GET /report] Generated report text:', reportText);
-    res.json({ report: reportText }); // Send the raw text back
+    console.log('[GET /report] Generated report text.');
+    res.json({ report: reportText });
 
   } catch (err) {
     console.error('[GET /report] Error generating report:', err.message, err.stack);
-    // Provide a more user-friendly error message
     res.status(500).json({ message: 'Error generating report. Please check server logs.', error: err.message });
   }
 });
 
 
-// POST / - Post a new job (Professional Body only)
+// POST / - Post a new job
 router.post('/', authMiddleware, async (req, res) => {
   try {
     console.log('[POST /] Received request to post job. User:', req.user);
@@ -274,18 +268,16 @@ router.post('/', authMiddleware, async (req, res) => {
       console.log('[POST /] Access denied: Incorrect role.');
       return res.status(403).json({ message: 'Access denied: Only professional bodies can post jobs.' });
     }
-    // Create and save the new job
     const job = new Job({
-      ...req.body, // Spread request body (title, description, category, etc.)
-      postedBy: req.user.id, // Set the poster ID from authenticated user
-      createdAt: new Date() // Set creation date
+      ...req.body,
+      postedBy: req.user.id,
+      createdAt: new Date()
     });
     await job.save();
     console.log('[POST /] Job posted successfully:', job._id);
     res.status(201).json({ message: 'Job posted successfully', job });
   } catch (err) {
     console.error('[POST /] Error posting job:', err.message, err.stack);
-    // Handle validation errors specifically
     if (err.name === 'ValidationError') {
         const errors = Object.values(err.errors).map(e => e.message).join(', ');
         return res.status(400).json({ message: 'Validation failed', details: errors });
@@ -295,18 +287,16 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 
-// POST /:id/apply - Apply for a job (Worker only)
+// POST /:id/apply - Apply for a job
 router.post('/:id/apply', authMiddleware, async (req, res) => {
   const jobId = req.params.id;
   console.log(`[POST /${jobId}/apply] Received application request by user:`, req.user);
   try {
-    // Ensure user is a worker
     if (req.user.role !== 'worker') {
       console.log(`[POST /${jobId}/apply] Access denied: User role is not worker.`);
       return res.status(403).json({ message: 'Access denied: Only workers can apply.' });
     }
 
-    // Find the job
     const job = await Job.findById(jobId);
     if (!job) {
       console.log(`[POST /${jobId}/apply] Job not found.`);
@@ -314,21 +304,16 @@ router.post('/:id/apply', authMiddleware, async (req, res) => {
     }
     console.log(`[POST /${jobId}/apply] Found job: ${job.title}`);
 
-    // Check if already applied
     const alreadyApplied = job.applications.some(app => app.worker.toString() === req.user.id);
     if (alreadyApplied) {
       console.log(`[POST /${jobId}/apply] Worker ${req.user.id} already applied.`);
       return res.status(400).json({ message: 'You have already applied for this job' });
     }
 
-    // Add application to the job's applications array
     job.applications.push({ worker: req.user.id, status: 'pending', appliedAt: new Date() });
     await job.save();
     console.log(`[POST /${jobId}/apply] Application submitted successfully for worker ${req.user.id}.`);
 
-    // Optionally: Fetch updated available/applied jobs to send back (as done previously)
-    // This part can be complex, consider if the frontend refetches instead
-    // For simplicity here, just confirming success.
     res.json({ message: 'Application submitted successfully' });
 
   } catch (err) {
@@ -338,11 +323,18 @@ router.post('/:id/apply', authMiddleware, async (req, res) => {
 });
 
 
-// POST /applications/:applicationId/accept - Accept an application (Professional Body only)
+// --- ACCEPT APPLICATION ---
 router.post('/applications/:applicationId/accept', authMiddleware, async (req, res) => {
   const { applicationId } = req.params;
   console.log(`[POST /accept] Received request for application ID: ${applicationId}`);
   console.log(`[POST /accept] User performing action: ${req.user.id} (Role: ${req.user.role})`);
+
+  // Validate applicationId format (basic check)
+  if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+      console.log(`[POST /accept] Invalid application ID format: ${applicationId}`);
+      return res.status(400).json({ message: 'Invalid application ID format.' });
+  }
+
   try {
     // Check user role
     if (req.user.role !== 'professional-body') {
@@ -350,7 +342,8 @@ router.post('/applications/:applicationId/accept', authMiddleware, async (req, r
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Find the job containing the application using the subdocument ID
+    // Find the job containing the application
+    // Use findOneAndUpdate for atomicity if possible, but finding first is clearer for debugging
     const job = await Job.findOne({ 'applications._id': applicationId });
     if (!job) {
       console.log(`[POST /accept] Job containing application ${applicationId} not found.`);
@@ -364,24 +357,29 @@ router.post('/applications/:applicationId/accept', authMiddleware, async (req, r
       return res.status(403).json({ message: 'Not authorized to modify this application' });
     }
 
-    // Find the specific subdocument within the job's applications array
-    // Mongoose arrays have a special .id() method to find subdocuments by _id
-    const application = job.applications.id(applicationId);
-    if (!application) {
-       // This check might be redundant if findOne worked, but good for safety
+    // Find the index of the application in the array
+    const appIndex = job.applications.findIndex(app => app._id.toString() === applicationId);
+
+    if (appIndex === -1) {
        console.log(`[POST /accept] Application subdocument ${applicationId} not found within job ${job._id}.`);
       return res.status(404).json({ message: 'Application subdocument not found' });
     }
-    console.log(`[POST /accept] Found application subdocument:`, application);
+    console.log(`[POST /accept] Found application subdocument at index ${appIndex}:`, job.applications[appIndex]);
 
     // Check if already processed
-    if (application.status !== 'pending') {
-        console.log(`[POST /accept] Application ${applicationId} already processed with status: ${application.status}`);
-        return res.status(400).json({ message: `Application has already been ${application.status}.` });
+    if (job.applications[appIndex].status !== 'pending') {
+        const currentStatus = job.applications[appIndex].status;
+        console.log(`[POST /accept] Application ${applicationId} already processed with status: ${currentStatus}`);
+        return res.status(400).json({ message: `Application has already been ${currentStatus}.` });
     }
 
-    // Update the status and save the parent Job document
-    application.status = 'accepted';
+    // Update the status directly in the array
+    job.applications[appIndex].status = 'accepted';
+
+    // Mark the array path as modified (important for subdocument arrays)
+    job.markModified('applications');
+
+    // Save the parent Job document
     await job.save();
     console.log(`[POST /accept] Application ${applicationId} status updated to 'accepted' and job saved.`);
     res.json({ message: 'Application accepted successfully' });
@@ -392,11 +390,18 @@ router.post('/applications/:applicationId/accept', authMiddleware, async (req, r
   }
 });
 
-// POST /applications/:applicationId/reject - Reject an application (Professional Body only)
+// --- REJECT APPLICATION ---
 router.post('/applications/:applicationId/reject', authMiddleware, async (req, res) => {
   const { applicationId } = req.params;
   console.log(`[POST /reject] Received request for application ID: ${applicationId}`);
   console.log(`[POST /reject] User performing action: ${req.user.id} (Role: ${req.user.role})`);
+
+  // Validate applicationId format
+  if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+      console.log(`[POST /reject] Invalid application ID format: ${applicationId}`);
+      return res.status(400).json({ message: 'Invalid application ID format.' });
+  }
+
   try {
     // Check user role
     if (req.user.role !== 'professional-body') {
@@ -418,29 +423,36 @@ router.post('/applications/:applicationId/reject', authMiddleware, async (req, r
       return res.status(403).json({ message: 'Not authorized to modify this application' });
     }
 
-     // Find the specific subdocument
-    const application = job.applications.id(applicationId);
-     if (!application) {
+    // Find the index of the application in the array
+    const appIndex = job.applications.findIndex(app => app._id.toString() === applicationId);
+
+     if (appIndex === -1) {
       console.log(`[POST /reject] Application subdocument ${applicationId} not found within job ${job._id}.`);
       return res.status(404).json({ message: 'Application subdocument not found' });
     }
-    console.log(`[POST /reject] Found application subdocument:`, application);
+    console.log(`[POST /reject] Found application subdocument at index ${appIndex}:`, job.applications[appIndex]);
 
      // Check if already processed
-    if (application.status !== 'pending') {
-        console.log(`[POST /reject] Application ${applicationId} already processed with status: ${application.status}`);
-        return res.status(400).json({ message: `Application has already been ${application.status}.` });
+    if (job.applications[appIndex].status !== 'pending') {
+        const currentStatus = job.applications[appIndex].status;
+        console.log(`[POST /reject] Application ${applicationId} already processed with status: ${currentStatus}`);
+        return res.status(400).json({ message: `Application has already been ${currentStatus}.` });
     }
 
-    // Update the status and save the parent Job document
-    application.status = 'rejected';
+    // Update the status directly in the array
+    job.applications[appIndex].status = 'rejected';
+
+    // Mark the array path as modified
+    job.markModified('applications');
+
+    // Save the parent Job document
     await job.save();
     console.log(`[POST /reject] Application ${applicationId} status updated to 'rejected' and job saved.`);
     res.json({ message: 'Application rejected successfully' });
 
   } catch (err) {
     console.error('[POST /reject] Error rejecting application:', err.message, err.stack);
-    res.status(500).json({ message: 'Error rejecting application' }); // Keep generic error for frontend
+    res.status(500).json({ message: 'Error rejecting application' });
   }
 });
 

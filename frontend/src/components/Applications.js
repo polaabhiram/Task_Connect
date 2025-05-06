@@ -26,37 +26,37 @@ const Applications = () => {
       }
 
       try {
-        console.log('Fetching applications with token:', token);
+        console.log('[Applications] Fetching applications with token:', token);
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001'; // Fallback API URL
-        console.log('Using API URL:', apiUrl);
+        console.log('[Applications] Using API URL:', apiUrl);
 
         const response = await axios.get(`${apiUrl}/api/jobs/applications`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        console.log('Full API Response:', response);
-        console.log('Applications API Response Data:', response.data);
+        console.log('[Applications] Full API Response:', response);
+        console.log('[Applications] API Response Data:', response.data);
 
         // Ensure the response data is an array before setting state
         if (Array.isArray(response.data)) {
           setApplications(response.data);
         } else {
-          console.error('API did not return an array:', response.data);
+          console.error('[Applications] API did not return an array:', response.data);
           setMessage('Received unexpected data format from the server.');
           setApplications([]); // Set to empty array on error
         }
 
       } catch (err) {
-        console.error('Error fetching applications - Full Error:', err);
+        console.error('[Applications] Error fetching applications - Full Error:', err);
         if (err.response) {
-          console.error('Error Response Data:', err.response.data);
-          console.error('Error Response Status:', err.response.status);
+          console.error('[Applications] Error Response Data:', err.response.data);
+          console.error('[Applications] Error Response Status:', err.response.status);
           setMessage(`Error fetching applications: ${err.response.data.message || err.response.statusText}`);
         } else if (err.request) {
-          console.error('Error Request:', err.request);
+          console.error('[Applications] Error Request:', err.request);
           setMessage('Error fetching applications: No response received from server.');
         } else {
-          console.error('Error Message:', err.message);
+          console.error('[Applications] Error Message:', err.message);
           setMessage(`Error fetching applications: ${err.message}`);
         }
         setApplications([]); // Ensure applications is an empty array on error
@@ -69,11 +69,21 @@ const Applications = () => {
   }, []); // Dependency array is empty, runs once on mount
 
   const handleStatusUpdate = async (applicationId, newStatus) => {
+    // Ensure newStatus is either 'accepted' or 'rejected'
+    if (newStatus !== 'accepted' && newStatus !== 'rejected') {
+        console.error("Invalid status passed to handleStatusUpdate:", newStatus);
+        setMessage("Internal error: Invalid status update requested.");
+        return;
+    }
+
     setMessage(`Updating application ${applicationId} to ${newStatus}...`);
     try {
       const token = localStorage.getItem('token');
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-      const endpoint = `${apiUrl}/api/jobs/applications/${applicationId}/${newStatus}`; // 'accept' or 'reject'
+      // Construct the correct endpoint based on the newStatus
+      const endpoint = `${apiUrl}/api/jobs/applications/${applicationId}/${newStatus}`; // Use newStatus directly
+
+      console.log(`[Applications] Sending POST to ${endpoint}`); // Log the endpoint being called
 
       const response = await axios.post(
         endpoint,
@@ -81,7 +91,8 @@ const Applications = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setMessage(response.data.message || `Application ${newStatus}ed successfully.`);
+      console.log(`[Applications] ${newStatus} response:`, response.data);
+      setMessage(response.data.message || `Application ${newStatus} successfully.`);
 
       // Update the local state to reflect the change immediately
       setApplications(prevApplications =>
@@ -94,9 +105,10 @@ const Applications = () => {
       // setTimeout(() => setMessage(''), 3000);
 
     } catch (err) {
-      console.error(`Error ${newStatus}ing application:`, err);
-      // *** FIX THE TYPO IN THE NEXT LINE ***
-      const errorMsg = err.response?.data?.message || `Error ${newStatus === 'accept' ? 'accepting' : 'rejecting'} application`;
+      console.error(`[Applications] Error ${newStatus}ing application:`, err);
+      // *** CORRECTED ERROR MESSAGE CONSTRUCTION ***
+      const actionText = newStatus === 'accepted' ? 'accepting' : 'rejecting'; // Use correct verb
+      const errorMsg = err.response?.data?.message || `Error ${actionText} application`;
       setMessage(errorMsg);
       // Optional: Clear message after a delay
       // setTimeout(() => setMessage(''), 5000);
@@ -163,13 +175,13 @@ const Applications = () => {
                   <div className="application-actions">
                     <button
                       className="accept-btn"
-                      onClick={() => handleStatusUpdate(app._id, 'accepted')}
+                      onClick={() => handleStatusUpdate(app._id, 'accepted')} // Pass 'accepted'
                     >
                       Accept
                     </button>
                     <button
                       className="reject-btn"
-                      onClick={() => handleStatusUpdate(app._id, 'rejected')}
+                      onClick={() => handleStatusUpdate(app._id, 'rejected')} // Pass 'rejected'
                     >
                       Reject
                     </button>

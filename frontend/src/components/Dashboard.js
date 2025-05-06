@@ -349,9 +349,7 @@ const Dashboard = () => {
           )}
         </div>
       </div>
-      <button className="logout-btn" onClick={handleLogout}>
-        Logout
-      </button>
+      
     </div>
   );
 };
